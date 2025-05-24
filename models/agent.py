@@ -25,14 +25,16 @@ class Agent(BaseModel):
         
         conversation: List[ChatCompletionMessageParam] = []
         
+        read_user_input = True
         while True:
-            # Get user input
-            user_input, ok = await self.get_user_message()
-            if not ok:
-                break
-                
-            # Add user message to conversation
-            conversation.append({"role": "user", "content": user_input})
+            if read_user_input:
+                # Get user input
+                user_input, ok = await self.get_user_message()
+                if not ok:
+                    break
+                    
+                # Add user message to conversation
+                conversation.append({"role": "user", "content": user_input})
             
             # Get AI response
             response = await self.run_inference(conversation)
@@ -43,6 +45,7 @@ class Agent(BaseModel):
             
             # Check for tool calls
             if message.tool_calls:
+                read_user_input = False
                 # Process tool calls
                 for tool_call in message.tool_calls:
                     tool_name = tool_call.function.name
@@ -58,13 +61,13 @@ class Agent(BaseModel):
                         "content": tool_result,
                     })
                 
-                # Get AI's response after tool execution
-                response = await self.run_inference(conversation)
-                message = response.choices[0].message
-                conversation.append(message)
-            
-            # Print the response
-            print(f"\033[93mGPT\033[0m: {message.content}")
+                # Continue loop to get AI's response after tool execution
+                continue
+            else:
+                read_user_input = True
+                # Print the response
+                if message.content:
+                    print(f"\033[93mGPT\033[0m: {message.content}")
     
     async def run_inference(self, conversation):
         """Send the conversation to OpenAI and get a response."""
@@ -80,13 +83,19 @@ class Agent(BaseModel):
                 }
             })
         
+        # Prepare the API call parameters
+        api_params = {
+            "model": "gpt-4o-mini",
+            "messages": conversation,
+        }
+        
+        # Only add tools and tool_choice if we have tools
+        if openai_tools:
+            api_params["tools"] = openai_tools
+            api_params["tool_choice"] = "auto"
+        
         # Call the API
-        response = await self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=conversation,
-            tools=openai_tools if openai_tools else None,
-            tool_choice="auto"
-        )
+        response = await self.client.chat.completions.create(**api_params)
         
         return response
     
