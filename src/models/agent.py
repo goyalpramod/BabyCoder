@@ -12,6 +12,7 @@ class ToolDefinition(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+#! The run and inference methods are the main methods of the agent. They should not be present in models.
 class Agent(BaseModel):
     client: AsyncOpenAI
     get_user_message: Callable[[], Awaitable[Tuple[str, bool]]]
